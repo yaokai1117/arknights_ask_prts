@@ -20,7 +20,7 @@ class LlmClient(ABC):
         pass
 
 class Gpt35(LlmClient):
-    MODEL = "gpt-3.5-turbo"
+    MODEL = "gpt-3.5-turbo-16k"
 
     def __init__(self) -> None:
         load_dotenv()
