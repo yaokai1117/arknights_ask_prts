@@ -47,7 +47,7 @@ Final output:\n\
 {{\n\
     "result_type": "related"， # String, whether this question is related \n\
     "tool_name": "game_data_graph_ql", # Can be one of "game_data_graph_ql", "bilibili_search" \n\
-    "tool_input": "...", # String, can be a JSON list of Graph QL queries, or a JSON list of keyword strings \n\
+    "tool_input": ["..."], # String, can be a JSON list of Graph QL query strings, or a JSON list of keyword strings \n\
 }}\n\
 --- End Result format --- \n\
 请确保你的回复包含"Final output:" 以及之后的JSON\n\
@@ -66,34 +66,35 @@ Final output: \n\
 {{\n\
     "result_type": "related",\n\
     "tool_name": "game_data_graph_ql",\n\
-    "tool_input": "\n\
-        [{{\n\
-        characters(filter: {{name: \\"玛恩纳\\"}}) {{\n\
-            name\n\
-            skills(index: 2) {{\n\
-                skillName\n\
-                levels(index: 8) {{\n\
-                    description\n\
-                    skillType\n\
-                    durationType\n\
-                    duration\n\
-                    spType\n\
-                    spCost\n\
-                    initialSp\n\
-                    maxCharge\n\
-                }}\n\
-                skillRequirements {{\n\
-                    proficientRequirements  {{\n\
-                        timeCost\n\
-                        materialCost {{\n\
-                            id\n\
-                            count\n\
-                        }}\n\
-                    }}\n\
-                }}\n\
-            }}\n\
-        }}\n\
-        }}]"\n\
+    "tool_input": [\n\
+        \"{{\\n\
+        characters(filter: {{name: \\"玛恩纳\\"}}) {{\\n\
+            name\\n\
+            skills(index: 2) {{\\n\
+                skillName\\n\
+                levels(index: 8) {{\\n\
+                    description\\n\
+                    skillType\\n\
+                    durationType\\n\
+                    duration\\n\
+                    spType\\n\
+                    spCost\\n\
+                    initialSp\\n\
+                    maxCharge\\n\
+                }}\\n\
+                skillRequirements {{\\n\
+                    proficientRequirements  {{\\n\
+                        timeCost\\n\
+                        materialCost {{\\n\
+                            id\\n\
+                            count\\n\
+                        }}\\n\
+                    }}\\n\
+                }}\\n\
+            }}\\n\
+        }}\\n\
+        }}\"\n\
+    ]\n\
 }}\n\
 \n\
 Exampler 2:\n\
@@ -103,23 +104,24 @@ Final output: \n\
 {{\n\
     "result_type": "related",\n\
     "tool_name": "game_data_graph_ql",\n\
-    "tool_input": "\n\
-        [{{\n\
-        skill(filter: {{skillName: \\"黄昏\\"}}) {{\n\
-            skillRequirements {{\n\
-                character {{\n\
-                    name\n\
-                }}\n\
-                proficientRequirements(index: null)  {{\n\
-                    timeCost\n\
-                    materialCost {{\n\
-                        id\n\
-                        count\n\
-                    }}\n\
-                }}\n\
-            }}\n\
-        }}\n\
-        }}]"\n\
+    "tool_input": [\n\
+        \"{{\\n\
+        skill(filter: {{skillName: \\"黄昏\\"}}) {{\\n\
+            skillRequirements {{\\n\
+                character {{\\n\
+                    name\\n\
+                }}\\n\
+                proficientRequirements(index: null)  {{\\n\
+                    timeCost\\n\
+                    materialCost {{\\n\
+                        id\\n\
+                        count\\n\
+                    }}\\n\
+                }}\\n\
+            }}\\n\
+        }}\\n\
+        }}\"\n\
+    ]\n\
 }}\n\
 \n\
 Exampler 3:\n\
@@ -129,12 +131,13 @@ Final output: \n\
 {{\n\
     "result_type": "related",\n\
     "tool_name": "game_data_graph_ql",\n\
-    "tool_input": "\n\
-        [{{\n\
-        characters(filter: {{subProfession: \\"秘术师\\", rarity: 6}}) {{\n\
-            name\n\
-        }}\n\
-        }}]"\n\
+    "tool_input": [\n\
+        \"{{\\n\
+        characters(filter: {{subProfession: \\"秘术师\\", rarity: 6}}) {{\\n\
+            name\\n\
+        }}\\n\
+        }}\"\n\
+    ]\n\
 }}\n\
 Exampler 4:\n\
 User: "明日方舟中最强术士是谁?" \n\
@@ -143,13 +146,15 @@ Final output: \n\
 {{\n\
     "result_type": "related",\n\
     "tool_name": "bilibili_search",\n\
-    "tool_input": "[\"明日方舟\", \"术士\", \"干员测评\"]"\n\
+    "tool_input": ["明日方舟", "术士", "干员测评"]\n\
 }}\n\
 \n\
 --- End examplers ---'
 
 
 class Planner():
+    OUTPUT_INDICATOR = 'Final output:'
+
     def process(self, question: str) -> str:
         messages = [
             Message(role='system', content=system_prompt),
@@ -160,14 +165,14 @@ class Planner():
 if __name__ ==  '__main__':
     planer = Planner()
     # print(planer.process('明日方舟中4.5周年什么时候开?'))
-    print(planer.process('仇白和山哪个生命值更高，攻击力、防御力、法抗呢？他们的技能又对比如何？'))
+    # print(planer.process('仇白和山哪个生命值更高，攻击力、防御力、法抗呢？他们的技能又对比如何？'))
     # print(planer.process('明日天气怎么样?'))
     # print(planer.process('山的二技能在一级时候是什么?'))
     # print(planer.process('山的二技能在专一时候是什么?'))
     # print(planer.process('山是什么职业的干员，他的二天赋是什么?'))
     # print(planer.process('请介绍新干员仇白'))
     # print(planer.process('仇白三技能需要的材料是什么'))
-    # print(planer.process('技能”你须愧悔“需要哪些专精材料'))
+    print(planer.process('技能”你须愧悔“需要哪些专精材料'))
     # print(planer.process('干员”山“的攻击力和生命值如何'))
     # print(planer.process('有哪些六星的术士'))
 
