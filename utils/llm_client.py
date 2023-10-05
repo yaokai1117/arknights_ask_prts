@@ -1,14 +1,14 @@
 import openai
 import os
+ROOT_PATH = os.path.join(os.path.dirname(__file__), '..')
 
+import sys
+sys.path.append(ROOT_PATH)
+
+from data_model import Message
 from abc import ABC, abstractmethod
-from pydantic import BaseModel
 from typing import List
 from dotenv import load_dotenv
-
-class Message(BaseModel):
-    role: str
-    content: str
 
 class LlmClient(ABC):
     @abstractmethod

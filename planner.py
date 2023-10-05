@@ -1,25 +1,12 @@
 import os
+import json
 
-from enum import Enum
-from pydantic import BaseModel
-from utils import llm_client, Message
+from utils import llm_client
+from data_model import Message, PlannerOutput, PlannerOutputType, ToolType
 from dotenv import load_dotenv
 
 # Determint the intention of user's input and decide which
 # worker should be called next.
-
-class PlannerOutputType(Enum):
-    unrelated = 'unrelated'
-    solvable_by_worker = 'solvable_by_worker'
-
-class WorkerType(Enum):
-    game_data_graph_ql = 'game_data_graph_ql'
-    bilibili_search = 'bilibili_search'
-
-class PlannerOutput(BaseModel):
-    type: PlannerOutputType
-    worker_type: WorkerType
-    worker_paramters: dict
 
 load_dotenv()
 schema_path = os.getenv("GRAPHQL_SCHEMA_PATH")
@@ -47,7 +34,7 @@ Final output:\n\
 {{\n\
     "result_type": "related"， # String, whether this question is related \n\
     "tool_name": "game_data_graph_ql", # Can be one of "game_data_graph_ql", "bilibili_search" \n\
-    "tool_input": ["..."], # String, can be a JSON list of Graph QL query strings, or a JSON list of keyword strings \n\
+    "tool_input": ["..."], # List of string, can be a list of Graph QL query strings, or a list of keyword strings \n\
 }}\n\
 --- End Result format --- \n\
 请确保你的回复包含"Final output:" 以及之后的JSON\n\
@@ -154,13 +141,46 @@ Final output: \n\
 
 class Planner():
     OUTPUT_INDICATOR = 'Final output:'
+    TOOLS = ['']    
 
-    def process(self, question: str) -> str:
+    def process(self, message_content: str) -> PlannerOutput:
         messages = [
             Message(role='system', content=system_prompt),
-            Message(role='user', content=question),
+            Message(role='user', content=message_content),
         ]
-        return llm_client.send(messages)
+        try:
+            response = llm_client.send(messages)
+        except Exception as e:
+            return self._create_failed_output(f'Exception when calling LLM: {e}')
+
+        result_json_idx = response.find(Planner.OUTPUT_INDICATOR)
+        if result_json_idx == -1:
+            return self._create_failed_output('No final output returned from Planner.')
+        result_json = response[result_json_idx + len(Planner.OUTPUT_INDICATOR):]
+
+        try:
+            result = json.loads(result_json)
+        except Exception as e:
+            return self._create_failed_output(f'Exception when pasing result json: {e}')
+
+        output_type: PlannerOutputType
+        if result.get('result_type') == 'unrelated':
+            output_type = PlannerOutputType.unrelated
+        elif result.get('result_type') == 'related':
+            output_type = PlannerOutputType.solvable_by_tool
+        else:
+            return self._create_failed_output('Unknown result type.')
+        
+        tool_type: ToolType
+        if result.get('tool_name') in [e.value for e in ToolType]:
+            tool_type = ToolType[result['tool_name']]
+        else:
+            return self._create_failed_output('Unknown tool type.')
+
+        return PlannerOutput(succeeded=True, type=output_type, tool_type=tool_type, tool_input=result.get('tool_input'))
+    
+    def _create_failed_output(error: str) -> PlannerOutput:
+        return PlannerOutput(succeeded=False, error=error)
 
 if __name__ ==  '__main__':
     planer = Planner()
