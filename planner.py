@@ -2,7 +2,7 @@ import os
 import json
 
 from utils import llm_client
-from data_model import Message, PlannerOutput, PlannerOutputType, ToolType
+from data_model import Message, PlannerOutput, PlannerOutputType, ToolType, LogEntry
 from dotenv import load_dotenv
 
 # Determint the intention of user's input and decide which
@@ -143,15 +143,18 @@ class Planner():
     OUTPUT_INDICATOR = 'Final output:'
     TOOLS = ['']    
 
-    def process(self, message_content: str) -> PlannerOutput:
+    def process(self, message_content: str, log_entry: LogEntry) -> PlannerOutput:
         messages = [
             Message(role='system', content=system_prompt),
             Message(role='user', content=message_content),
         ]
+        log_entry.messages.extend(messages)
         try:
             response = llm_client.send(messages)
         except Exception as e:
             return self._create_failed_output(f'Exception when calling LLM: {e}')
+
+        log_entry.messages.append(Message(role='agent', content=response))
 
         result_json_idx = response.find(Planner.OUTPUT_INDICATOR)
         if result_json_idx == -1:
@@ -183,16 +186,19 @@ class Planner():
         return PlannerOutput(succeeded=False, error=error)
 
 if __name__ ==  '__main__':
+    from utils import start_session
+
     planer = Planner()
-    # print(planer.process('明日方舟中4.5周年什么时候开?'))
-    # print(planer.process('仇白和山哪个生命值更高，攻击力、防御力、法抗呢？他们的技能又对比如何？'))
-    # print(planer.process('明日天气怎么样?'))
-    # print(planer.process('山的二技能在一级时候是什么?'))
-    # print(planer.process('山的二技能在专一时候是什么?'))
-    # print(planer.process('山是什么职业的干员，他的二天赋是什么?'))
-    # print(planer.process('请介绍新干员仇白'))
-    # print(planer.process('仇白三技能需要的材料是什么'))
-    print(planer.process('技能”你须愧悔“需要哪些专精材料'))
-    # print(planer.process('干员”山“的攻击力和生命值如何'))
-    # print(planer.process('有哪些六星的术士'))
+    log_entry = start_session('test')
+    # print(planer.process('明日方舟中4.5周年什么时候开?', log_entry))
+    # print(planer.process('仇白和山哪个生命值更高，攻击力、防御力、法抗呢？他们的技能又对比如何？', log_entry))
+    # print(planer.process('明日天气怎么样?', log_entry))
+    # print(planer.process('山的二技能在一级时候是什么?', log_entry))
+    # print(planer.process('山的二技能在专一时候是什么?', log_entry))
+    # print(planer.process('山是什么职业的干员，他的二天赋是什么?', log_entry))
+    # print(planer.process('请介绍新干员仇白', log_entry))
+    # print(planer.process('仇白三技能需要的材料是什么', log_entry))
+    print(planer.process('技能”你须愧悔“需要哪些专精材料', log_entry))
+    # print(planer.process('干员”山“的攻击力和生命值如何', log_entry))
+    # print(planer.process('有哪些六星的术士', log_entry))
 

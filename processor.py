@@ -1,27 +1,33 @@
 from planner import Planner
 from typing import List
-from data_model import ToolType
-from utils import graphql_client
+from data_model import ToolType, SessionStatus
+from utils import graphql_client, start_session, finish_session
 
 class Processor():
     def __init__(self) -> None:
         self.planner = Planner()
 
     def process(self, question: str) -> List[dict]:
-        planner_output = self.planner.process(question)
-        print(planner_output)
+        log_entry = start_session(question)
+        planner_output = self.planner.process(question, log_entry)
+        log_entry.planner_output = planner_output
         if not planner_output.succeeded:
+            finish_session(log_entry, status=SessionStatus.fail, error=f'Planner error: {planner_output.error}')
             return [{'error': planner_output.error}]
         
         output: List[dict] = []
         if planner_output.tool_type == ToolType.game_data_graph_ql:
             for query in planner_output.tool_input:
                 try:
+                    log_entry.graphql_queries.append(query)
                     query_result = graphql_client.query(query)
                 except Exception as e:
+                    finish_session(log_entry, status=SessionStatus.fail, error=f'GraphQL error: {e}')
                     return [{'error': f'Exception when calling graphql: {e}'}]
                 output.append(query_result)
+                log_entry.graphql_results.append(query_result)
         elif planner_output.tool_type == ToolType.bilibili_search:
             # TODO: implemnt bilibili search tool.
             output.extend(planner_output.tool_input)
+        finish_session(log_entry, status=SessionStatus.success, final_response=output)
         return output
