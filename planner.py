@@ -37,7 +37,8 @@ Final output:\n\
     "tool_input": ["..."], # List of string, can be a list of Graph QL query strings, or a list of keyword strings \n\
 }}\n\
 --- End Result format --- \n\
-参照以下示例,一步一步进行思考并记录在"Thoughts:"后面.确保你的回复包含"Final output:" 以及之后的JSON\n\
+参照以下示例,一步一步进行思考并记录在"Thoughts:"后面.\n\
+确保你的回复包含"Final output:" 以及之后的JSON\n\
 \n\
 --- Begin Examplers: ---\n\
 \n\
@@ -101,7 +102,7 @@ Final output: \n\
                 proficientRequirements(index: null)  {{\\n\
                     timeCost\\n\
                     materialCost {{\\n\
-                        id\\n\
+                        materialName\\n\
                         count\\n\
                     }}\\n\
                 }}\\n\
@@ -129,7 +130,31 @@ Final output: \n\
         }}\"\n\
     ]\n\
 }}\n\
+\n\
 Exampler 4:\n\
+User: "银灰和史尔特尔谁的天赋更强大？" \n\
+Agent: "Thoughts: 我们需要发送两个query分别获取这两个干员的天赋\n\
+Final output: \n\
+{{\n\
+    "result_type": "related",\n\
+    "tool_name": "game_data_graph_ql",\n\
+    "tool_input": [\n\
+        \"{{\\n\
+        characters(filter: {{name: \\"银灰\\"}}) {{\\n\
+            name\\n\
+            talents\\n\
+        }}\\n\
+        }}\",\n\
+        \"{{\\n\
+        characters(filter: {{name: \\"史尔特尔\\"}}) {{\\n\
+            name\\n\
+            talents\\n\
+        }}\\n\
+        }}\"\n\
+    ]\n\
+}}\n\
+\n\
+Exampler 5:\n\
 User: "明日方舟中最强术士是谁?" \n\
 Agent: "Thoughts: 干员强弱,排行榜,梯度等等问题需要考虑多个方面,且包含一定主观因素,难以通过游戏数据API获取全部信息.可以在Bilibili视频网站上搜索.关键词为"明日方舟", "术士", "干员测评"\n\
 Final output: \n\
@@ -139,7 +164,16 @@ Final output: \n\
     "tool_input": ["明日方舟", "术士", "干员测评"]\n\
 }}\n\
 \n\
---- End examplers ---'
+Exampler 6:\n\
+User: "土拨鼠的叫声是什么样子的?" \n\
+Agent: "Thoughts: 该问题与明日方舟无关。我们仍然需要返回一个JSON的结果\n\
+Final output: \n\
+{{\n\
+    "result_type": "unrelated",\n\
+}}\n\
+\n\
+--- End examplers ---\n\
+'
 
 
 class Planner():
@@ -158,7 +192,6 @@ class Planner():
             return self._create_failed_output(f'Exception when calling LLM: {e}')
 
         log_entry.messages.append(Message(role='agent', content=response))
-        print(response)
 
         result_json_idx = response.find(Planner.OUTPUT_INDICATOR)
         if result_json_idx == -1:
@@ -173,6 +206,7 @@ class Planner():
         output_type: PlannerOutputType
         if result.get('result_type') == 'unrelated':
             output_type = PlannerOutputType.unrelated
+            return PlannerOutput(succeeded=True, type=output_type)
         elif result.get('result_type') == 'related':
             output_type = PlannerOutputType.solvable_by_tool
         else:
@@ -202,8 +236,9 @@ if __name__ ==  '__main__':
     # print(planer.process('山是什么职业的干员,他的二天赋是什么?', log_entry))
     # print(planer.process('请介绍新干员仇白', log_entry))
     # print(planer.process('仇白三技能需要的材料是什么', log_entry))
-    # print(planer.process('技能”你须愧悔“需要哪些专精材料', log_entry))
+    # print(planer.process('技能”你须愧悔“需要哪些专精材料', log_entry))    ＃　TODO: remove unnecessary arguments.
     # print(planer.process('干员”山“的攻击力和生命值如何', log_entry))
     # print(planer.process('有哪些六星的术士', log_entry))
-    print(planer.process('有哪些5星的远卫干员', log_entry))
+    # print(planer.process('有哪些5星的远卫干员', log_entry))
+    print(planer.process('苇草的技能专精需要用到三水锰矿吗', log_entry))
 

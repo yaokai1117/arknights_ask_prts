@@ -1,5 +1,9 @@
 from pydantic import BaseModel
 from typing import List, Callable, Optional
+from graphql import parse, print_ast
+from graphql.language.ast import ObjectFieldNode
+from graphql.language.visitor import visit, Visitor, IDLE
+from typing import Dict, Any
 
 class ValueNormalizationData(BaseModel):
     normalized_value: str
@@ -112,29 +116,75 @@ normalizers_map = {normalizer.field_name: normalizer for normalizer in [
     SUB_PROFESSION_FIELD_NORMALIZER,
 ]}
 
-def normalize(field: str, input: str) -> str:
+def _normalize_field(field: str, input: str) -> str:
+    print(field + ': ' + input)
     if field in normalizers_map.keys():
         return normalizers_map[field].normalize(input)
     return input
 
-def denormalize(field: str, input: str) -> str:
+def _denormalize_field(field: str, input: str) -> str:
     if field in normalizers_map.keys():
         return normalizers_map[field].denormalize(input)
     return input
 
+class NormalizeVisitor(Visitor):
+    def enter(self, node, key, parent, path, ancestors):
+        if isinstance(node, ObjectFieldNode):
+            field_name = node.name.value
+            value = node.value
+
+            if value.kind == 'list_value':
+                for value in value.values:
+                    if value.kind == 'string_value':
+                        value.value = _normalize_field(field_name, value.value)
+                return IDLE
+            elif value.kind == 'string_value':
+                value.value = _normalize_field(field_name, value.value)
+                return IDLE
+        return IDLE
+
+def normalize_graphql_query(query: str) -> str:
+    ast = parse(query)
+    new_ast = visit(ast, NormalizeVisitor())
+    return print_ast(new_ast)
+
+def denormalize_graphql_result(obj: Dict[str, Any]) -> None:
+    for key, value in obj.items():
+        if isinstance(value, str):
+            obj[key] = _denormalize_field(key, value)
+        elif isinstance(value, dict):
+            denormalize_graphql_result(value)
+        elif isinstance(value, list):
+            new_list = []
+            for sub_value in value:
+                if isinstance(sub_value, str):
+                    new_list.append(_denormalize_field(key, sub_value))
+                elif isinstance(sub_value, dict):
+                    denormalize_graphql_result(sub_value)
+                    new_list.append(sub_value)
+                else:
+                    new_list.append(sub_value)
+            obj[key] = new_list
+
 if __name__ == '__main__':
-    print(normalize('position', '近战'))
-    print(normalize('position', '高台'))
-    print(normalize('profession', '近卫'))
-    print(normalize('profession', '术士'))
-    print(normalize('subProfession', '召唤师'))
-    print(normalize('subProfession', '远卫'))
-    print(normalize('id', '1234'))
-    print(normalize('id', '5678'))
-    
-    print(denormalize('position', 'MELEE'))
-    print(denormalize('position', 'RANGED'))
-    print(denormalize('profession', 'WARRIOR'))
-    print(denormalize('profession', 'CASTER'))
-    print(denormalize('subProfession', 'summoner'))
-    print(denormalize('subProfession', 'lord'))
+    PRODUCT_QUERY = '''
+    {
+        characters(filter: {tagList: ["治疗", "防护", "输出"], rarity: 6, position: "高台", profession: "术士"}) {
+            name
+        }
+    }
+'''
+    print(normalize_graphql_query(PRODUCT_QUERY))
+
+    result = {
+        'position': 'RANGED',
+        'profession': 'CASTER',
+        'something': ['A', 'B'],
+        'another': [
+            {
+                'subProfession': ['fighter', 'lord']
+            }
+        ]
+    }
+    denormalize_graphql_result(result)
+    print(result)
