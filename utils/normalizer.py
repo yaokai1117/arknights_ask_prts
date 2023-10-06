@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from typing import List, Callable, Optional
 from graphql import parse, print_ast
-from graphql.language.ast import ObjectFieldNode
+from graphql.language.ast import ObjectFieldNode, FieldNode
 from graphql.language.visitor import visit, Visitor, IDLE
 from typing import Dict, Any
 
@@ -128,7 +128,16 @@ def _denormalize_field(field: str, input: str) -> str:
     return input
 
 class NormalizeVisitor(Visitor):
+    FIELDS_WITH_ARGUMENTS = ['characters', 'skill', 'skills', 'phases', 'levels', 'attributesKeyFrames']
+
     def enter(self, node, key, parent, path, ancestors):
+        # Remove unwanted arguments.
+        if isinstance(node, FieldNode):
+            if len(node.arguments) != 0 and node.name.value not in NormalizeVisitor.FIELDS_WITH_ARGUMENTS:
+                node.arguments = None
+            return IDLE
+
+        # Normalize argument values.
         if isinstance(node, ObjectFieldNode):
             field_name = node.name.value
             value = node.value
