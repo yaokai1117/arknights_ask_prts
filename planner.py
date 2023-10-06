@@ -236,7 +236,7 @@ if __name__ ==  '__main__':
     # print(planer.process('山是什么职业的干员,他的二天赋是什么?', log_entry))
     # print(planer.process('请介绍新干员仇白', log_entry))
     # print(planer.process('仇白三技能需要的材料是什么', log_entry))
-    # print(planer.process('技能”你须愧悔“需要哪些专精材料', log_entry))    ＃　TODO: remove unnecessary arguments.
+    # print(planer.process('技能”你须愧悔“需要哪些专精材料', log_entry))
     # print(planer.process('干员”山“的攻击力和生命值如何', log_entry))
     # print(planer.process('有哪些六星的术士', log_entry))
     # print(planer.process('有哪些5星的远卫干员', log_entry))

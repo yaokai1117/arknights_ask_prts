@@ -128,6 +128,7 @@ def _denormalize_field(field: str, input: str) -> str:
     return input
 
 class NormalizeVisitor(Visitor):
+    # TODO: read this from schema.
     FIELDS_WITH_ARGUMENTS = ['characters', 'skill', 'skills', 'phases', 'levels', 'attributesKeyFrames']
 
     def enter(self, node, key, parent, path, ancestors):
