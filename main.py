@@ -11,7 +11,7 @@ def read_root():
 @app.post('/ask/')
 async def post_message(request: AskPrtsRequest):
     processor = Processor()
-    return processor.process(request.content)
+    return await processor.process(request.content)
 
 if __name__ ==  '__main__':
     import uvicorn

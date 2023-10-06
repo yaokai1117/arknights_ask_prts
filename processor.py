@@ -1,16 +1,17 @@
 from planner import Planner
 from typing import List
 from data_model import PlannerOutputType, ToolType, SessionStatus
-from utils import graphql_client, start_session, finish_session
+from utils import graphql_client, bilibili_search, start_session, finish_session
 from utils import normalize_graphql_query, denormalize_graphql_result
 
 class Processor():
     UNRELATED_RESPONSE = '这个问题似乎与明日方舟无关。'
+    BILI_SEARCH_RESPONSE_HEADER = '在哔哩哔哩上搜索[{keywords}]的结果：\n{results}'
 
     def __init__(self) -> None:
         self.planner = Planner()
 
-    def process(self, question: str) -> List[dict]:
+    async def process(self, question: str) -> List[dict]:
         log_entry = start_session(question)
         planner_output = self.planner.process(question, log_entry)
         log_entry.planner_output = planner_output
@@ -36,7 +37,7 @@ class Processor():
                 output.append(query_result)
                 log_entry.graphql_results.append(query_result)
         elif planner_output.tool_type == ToolType.bilibili_search:
-            # TODO: implemnt bilibili search tool.
-            output.extend(planner_output.tool_input)
+            bili_result = await bilibili_search(planner_output.tool_input)
+            output.append(self.BILI_SEARCH_RESPONSE_HEADER.format(keywords=planner_output.tool_input, results=bili_result))
         finish_session(log_entry, status=SessionStatus.success, final_response=output)
         return output

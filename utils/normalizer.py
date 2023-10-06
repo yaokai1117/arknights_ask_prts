@@ -117,7 +117,6 @@ normalizers_map = {normalizer.field_name: normalizer for normalizer in [
 ]}
 
 def _normalize_field(field: str, input: str) -> str:
-    print(field + ': ' + input)
     if field in normalizers_map.keys():
         return normalizers_map[field].normalize(input)
     return input
