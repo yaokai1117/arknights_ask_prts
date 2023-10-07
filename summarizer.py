@@ -8,8 +8,9 @@ def _create_exampler(exampler_name: str, question: str, queries: List[str], quer
   return f'{exampler_name}:\n\
 User: {question}\n\
 Queries: {queries}\n\
-Results:' + json.dumps(query_result, ensure_ascii=False) + f'Toughts: {thoughts}\n\
-Final output: {final_response}\n\
+Results:' + json.dumps(query_result, ensure_ascii=False) + f'\nThoughts: {thoughts}\n\
+Final output: \n\
+{final_response}\n\
 \n\
 '
 
@@ -17,8 +18,8 @@ def _create_user_input(question: str, queries: List[str], query_result: List[dic
   return f'User: {question}\n\
 Queries: {queries}\n\
 Results:' + json.dumps(query_result, ensure_ascii=False) + f'\n\
-Please provdie:\n\
-Toughts: ?\n\
+Your reponse start here:\n\
+Thoughts: ?\n\
 Final output: ?\n\
 \n\
 '
@@ -236,9 +237,10 @@ SYSTEM_PROMPT = f'\注意请不要使用你已有的关于《明日方舟》信�
 --- Result format --- \n\
 Thoughts: Step by step analysis. \n\
 \n\
-Final output:\n\ Your final response that will be shown to the user\n\
+Final output:\n\
+Your final response that will be shown to the user\n\
 --- End Result format --- \n\
-确保你的回复包含"Final output:"，在这个语句之后写出最终回答\n\
+确保你的回复包含"Final output:"及之后的回答\n\
 参照以下示例\n\
 --- Begin Examplers: ---\n\
 {EXAMPLER_1}\n\
@@ -265,11 +267,9 @@ class Summarizer():
         log_entry.messages.append(Message(role='agent', content=response))
 
         result_json_idx = response.find(Summarizer.OUTPUT_INDICATOR)
-        if result_json_idx == -1:
-            log_entry.status = SessionStatus.fail
-            log_entry.error = f'Summarizer error: No final output returned from Summarizer.'
-            return ''
-        return response[result_json_idx + len(Summarizer.OUTPUT_INDICATOR):]
+        if result_json_idx != -1:
+           response = response[result_json_idx + len(Summarizer.OUTPUT_INDICATOR):]
+        return response
 
 if __name__ == '__main__':
     from utils import start_session

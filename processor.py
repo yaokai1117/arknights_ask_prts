@@ -1,8 +1,8 @@
 from planner import Planner
 from summarizer import Summarizer
 from typing import List
-from data_model import PlannerOutputType, ToolType, SessionStatus
-from utils import graphql_client, bilibili_search, start_session, finish_session, save_session
+from data_model import PlannerOutputType, ToolType, SessionStatus, LogEntry
+from utils import graphql_client, bilibili_search
 from utils import normalize_graphql_query, denormalize_graphql_result
 
 class Processor():
@@ -14,17 +14,19 @@ class Processor():
         self.planner = Planner()
         self.summarizer = Summarizer()
 
-    async def process(self, question: str) -> List[dict]:
-        log_entry = start_session(question)
+    async def process(self, question: str, log_entry: LogEntry) -> str:
         planner_output = self.planner.process(question, log_entry)
         log_entry.planner_output = planner_output
         if not planner_output.succeeded:
-            finish_session(log_entry, status=SessionStatus.fail, error=f'Planner error: {planner_output.error}', final_response=Processor.NO_IDEA_RESPONSE)
-            return [Processor.NO_IDEA_RESPONSE]
+            log_entry.status = SessionStatus.fail
+            log_entry.error = f'Planner error: {planner_output.error}'
+            log_entry.final_response =Processor.NO_IDEA_RESPONSE
+            return Processor.NO_IDEA_RESPONSE
         
         if planner_output.type == PlannerOutputType.unrelated:
-            finish_session(log_entry, status=SessionStatus.success, final_response=Processor.UNRELATED_RESPONSE)
-            return [Processor.UNRELATED_RESPONSE]
+            log_entry.status = SessionStatus.success
+            log_entry.final_response = Processor.UNRELATED_RESPONSE
+            return Processor.UNRELATED_RESPONSE
         
         final_reponse: str
         if planner_output.tool_type == ToolType.game_data_graph_ql:
@@ -55,7 +57,6 @@ class Processor():
                 finally:
                     final_reponse = bili_result
                     log_entry.final_response = final_reponse
-                    save_session(log_entry)
                     return final_reponse
 
         elif planner_output.tool_type == ToolType.bilibili_search:
@@ -65,8 +66,11 @@ class Processor():
             except Exception as e:
                 bili_result = Processor.NO_IDEA_RESPONSE
                 final_reponse = bili_result
-                finish_session(log_entry, status=SessionStatus.fail, error=f'Bilibili search error: {e}', final_response=final_reponse)
+                log_entry.status = SessionStatus.fail
+                log_entry.error = f'Bilibili search error: {e}'
+                log_entry.final_response = final_reponse
                 return final_reponse
             final_reponse = bili_result
-        finish_session(log_entry, status=SessionStatus.success, final_response=final_reponse)
+        log_entry.status = SessionStatus.success
+        log_entry.final_response = final_reponse
         return final_reponse

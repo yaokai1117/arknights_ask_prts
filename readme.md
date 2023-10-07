@@ -2,7 +2,7 @@
 
 A chat bot API for questions about game Arknights, leveraing the GraphQL game data API [arknights_data_api](https://github.com/yaokai1117/arknights_data_api)  
 
-**Everythign is still WIP.**
+**Everything is still WIP.**
 
 **Note**: currently only support Chinese version data set.  
 
@@ -65,7 +65,7 @@ The results returned by the API are:
 
 Then we send the initial question, the request, the response altogher to LLM again, then we get the final response:
 ```
-Toughts: 从查询结果中可以得知，干员"山"的职业是近卫，他的第二个天赋是"强壮肉体: 防御力+10%，获得15%的物理闪避"。
+Thoughts: 从查询结果中可以得知，干员"山"的职业是近卫，他的第二个天赋是"强壮肉体: 防御力+10%，获得15%的物理闪避"。
 Final output: "山"是近卫职业的干员，他的第二个天赋是"强壮肉体: 防御力+10%，获得15%的物理闪避"。
 ```
 
