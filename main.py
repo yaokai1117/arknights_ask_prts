@@ -1,7 +1,13 @@
+import os
 from fastapi import FastAPI
 from processor import Processor
 from data_model import AskPrtsRequest, AskPrtsReponse
 from utils import start_session, save_session
+from dotenv import load_dotenv
+
+load_dotenv()
+
+PORT = int(os.getenv("CHAT_API_PORT"))
 
 app = FastAPI()
 
@@ -19,4 +25,4 @@ async def post_message(request: AskPrtsRequest) -> AskPrtsReponse:
 
 if __name__ ==  '__main__':
     import uvicorn
-    uvicorn.run(app, host='0.0.0.0', port=9888)
+    uvicorn.run(app, host='0.0.0.0', port=PORT)
