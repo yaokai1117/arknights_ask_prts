@@ -1,4 +1,5 @@
 from planner import Planner
+from summarizer import Summarizer
 from typing import List
 from data_model import PlannerOutputType, ToolType, SessionStatus
 from utils import graphql_client, bilibili_search, start_session, finish_session, save_session
@@ -11,6 +12,7 @@ class Processor():
 
     def __init__(self) -> None:
         self.planner = Planner()
+        self.summarizer = Summarizer()
 
     async def process(self, question: str) -> List[dict]:
         log_entry = start_session(question)
@@ -24,8 +26,9 @@ class Processor():
             finish_session(log_entry, status=SessionStatus.success, final_response=Processor.UNRELATED_RESPONSE)
             return [Processor.UNRELATED_RESPONSE]
         
-        output: List[dict] = []
+        final_reponse: str
         if planner_output.tool_type == ToolType.game_data_graph_ql:
+            query_results: List[dict] = []
             for query in planner_output.tool_input:
                 try:
                     query = normalize_graphql_query(query)
@@ -36,8 +39,11 @@ class Processor():
                     log_entry.status = SessionStatus.fail
                     log_entry.error = f'GraphQL error: {e}'
                     continue
-                output.append(query_result)
+                query_results.append(query_result)
                 log_entry.graphql_results.append(query_result)
+            if log_entry.status != SessionStatus.fail:
+                final_reponse = self.summarizer.process(question, planner_output.tool_input, query_results, log_entry)
+
             if log_entry.status == SessionStatus.fail:
                 # Fallback to bilibili search when graphql failed.
                 log_entry.fall_back_tool = ToolType.bilibili_search
@@ -47,19 +53,20 @@ class Processor():
                 except Exception as e:
                     bili_result = Processor.NO_IDEA_RESPONSE
                 finally:
-                    log_entry.final_response = bili_result
-                    output.append(bili_result)
+                    final_reponse = bili_result
+                    log_entry.final_response = final_reponse
                     save_session(log_entry)
-                    return output
+                    return final_reponse
+
         elif planner_output.tool_type == ToolType.bilibili_search:
             try:
                 search_result = await bilibili_search(planner_output.tool_input)
                 bili_result = self.BILI_SEARCH_RESPONSE_HEADER.format(keywords=planner_output.tool_input, results=search_result)
             except Exception as e:
                 bili_result = Processor.NO_IDEA_RESPONSE
-                output.append(bili_result)
-                finish_session(log_entry, status=SessionStatus.fail, error=f'Bilibili search error: {e}', final_response=bili_result)
-                return output
-            output.append(bili_result)
-        finish_session(log_entry, status=SessionStatus.success, final_response=output)
-        return output
+                final_reponse = bili_result
+                finish_session(log_entry, status=SessionStatus.fail, error=f'Bilibili search error: {e}', final_response=final_reponse)
+                return final_reponse
+            final_reponse = bili_result
+        finish_session(log_entry, status=SessionStatus.success, final_response=final_reponse)
+        return final_reponse

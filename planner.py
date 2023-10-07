@@ -13,7 +13,7 @@ schema_path = os.getenv("GRAPHQL_SCHEMA_PATH")
 with open(schema_path) as file:
     schema = file.read()
 
-system_prompt = f'注意请不要使用你已有的关于《明日方舟》信息,仅仅考虑上下文提供的信息进行回答.\n\
+SYSTEM_PROMPT = f'注意请不要使用你已有的关于《明日方舟》信息,仅仅考虑上下文提供的信息进行回答.\n\
 《明日方舟》是一款由中国游戏公司鹰角Hypergryph开发并运营的策略类手机游戏.游戏的故事背景是一个科幻世界,玩家需要管理一支特殊团队,招募不同技能和特点的干员(游戏中的角色),并通过策略性的战斗来应对各种挑战.\n\
 明日方舟中的干员可以有多个精英阶段,分别为未精英(精0),精一,精二.除非用户特别指明需要低等级信息,我们只返回干员的最高精英阶段(index=-1).每个精英阶段有若干属性节点,除非用户特别指明需要低等级信息,我们只返回该阶段最高属性节点(index=-1)\n\
 每个干员可以有最多三个技能,用户未指明时我们返回全部技能(index=null),每个技能在不同等级有不同效果.除非用户特别指明需要低等级信息,我们只返回技能最高等级(index为-1)的信息.\n\
@@ -44,7 +44,7 @@ Final output:\n\
 \n\
 Exampler 1:\n\
 User: "玛恩纳的三技能的在专二时的效果是什么？该技能的专精材料是什么" \n\
-Agent: "Thoughts: 这里的"三技能"指的是干员玛恩纳的第三个技能,我们可以使用Character的skills字段来获取技能的信息.\n\
+Agent: "Thoughts: 玛恩纳是一个干员的名字，这里的"三技能"指的是干员玛恩纳的第三个技能,我们可以使用Character的skills字段来获取技能的信息.\n\
 关于第一个问题:专二时的效果:\n\
 字段levels包含技能在每个等级的效果,技能有最多10个等级,当用户指明1到7级时我们返回对应1到7级的技能信息,而专精一,二,三分别对应第8,9,10级.\n\
 这里用户指明了专二,对应第9级.\n\
@@ -175,14 +175,12 @@ Final output: \n\
 --- End examplers ---\n\
 '
 
-
 class Planner():
     OUTPUT_INDICATOR = 'Final output:'
-    TOOLS = ['']    
 
     def process(self, message_content: str, log_entry: LogEntry) -> PlannerOutput:
         messages = [
-            Message(role='system', content=system_prompt),
+            Message(role='system', content=SYSTEM_PROMPT),
             Message(role='user', content=message_content),
         ]
         log_entry.messages.extend(messages)
