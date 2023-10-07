@@ -18,4 +18,4 @@ async def bilibili_search(keywords: List[str]) -> str:
 
 if __name__ == '__main__':
     import asyncio
-    print(asyncio.run(bilibili_search(['明日方舟', '夏活'])))
+    print(asyncio.run(bilibili_search(['领主的攻击范围是什么样的'])))

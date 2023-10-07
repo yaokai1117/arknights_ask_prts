@@ -1,7 +1,7 @@
 from enum import Enum
 from pydantic import BaseModel
 from uuid import UUID
-from .planner_data_model import PlannerOutput
+from .planner_data_model import PlannerOutput, ToolType
 from .llm_data_model import Message
 from typing import List, Optional
 
@@ -22,6 +22,7 @@ class LogEntry(BaseModel):
     planner_output: Optional[PlannerOutput] = None
     graphql_queries: List[str] = []
     graphql_results: List[dict] = []
+    fall_back_tool: Optional[ToolType] = None
 
     class Config:  
         use_enum_values = True

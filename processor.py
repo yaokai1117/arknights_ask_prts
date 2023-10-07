@@ -1,10 +1,11 @@
 from planner import Planner
 from typing import List
 from data_model import PlannerOutputType, ToolType, SessionStatus
-from utils import graphql_client, bilibili_search, start_session, finish_session
+from utils import graphql_client, bilibili_search, start_session, finish_session, save_session
 from utils import normalize_graphql_query, denormalize_graphql_result
 
 class Processor():
+    NO_IDEA_RESPONSE = '不知道诶。。。'
     UNRELATED_RESPONSE = '这个问题似乎与明日方舟无关。'
     BILI_SEARCH_RESPONSE_HEADER = '在哔哩哔哩上搜索[{keywords}]的结果：\n{results}'
 
@@ -16,8 +17,8 @@ class Processor():
         planner_output = self.planner.process(question, log_entry)
         log_entry.planner_output = planner_output
         if not planner_output.succeeded:
-            finish_session(log_entry, status=SessionStatus.fail, error=f'Planner error: {planner_output.error}')
-            return [{'error': planner_output.error}]
+            finish_session(log_entry, status=SessionStatus.fail, error=f'Planner error: {planner_output.error}', final_response=Processor.NO_IDEA_RESPONSE)
+            return [Processor.NO_IDEA_RESPONSE]
         
         if planner_output.type == PlannerOutputType.unrelated:
             finish_session(log_entry, status=SessionStatus.success, final_response=Processor.UNRELATED_RESPONSE)
@@ -32,12 +33,33 @@ class Processor():
                     query_result = graphql_client.query(query)
                     denormalize_graphql_result(query_result)
                 except Exception as e:
-                    finish_session(log_entry, status=SessionStatus.fail, error=f'GraphQL error: {e}')
-                    return [{'error': f'Exception when calling graphql: {e}'}]
+                    log_entry.status = SessionStatus.fail
+                    log_entry.error = f'GraphQL error: {e}'
+                    continue
                 output.append(query_result)
                 log_entry.graphql_results.append(query_result)
+            if log_entry.status == SessionStatus.fail:
+                # Fallback to bilibili search when graphql failed.
+                log_entry.fall_back_tool = ToolType.bilibili_search
+                try:
+                    search_result = await bilibili_search([question])
+                    bili_result = self.BILI_SEARCH_RESPONSE_HEADER.format(keywords=question, results=search_result)
+                except Exception as e:
+                    bili_result = Processor.NO_IDEA_RESPONSE
+                finally:
+                    log_entry.final_response = bili_result
+                    output.append(bili_result)
+                    save_session(log_entry)
+                    return output
         elif planner_output.tool_type == ToolType.bilibili_search:
-            bili_result = await bilibili_search(planner_output.tool_input)
-            output.append(self.BILI_SEARCH_RESPONSE_HEADER.format(keywords=planner_output.tool_input, results=bili_result))
+            try:
+                search_result = await bilibili_search(planner_output.tool_input)
+                bili_result = self.BILI_SEARCH_RESPONSE_HEADER.format(keywords=planner_output.tool_input, results=search_result)
+            except Exception as e:
+                bili_result = Processor.NO_IDEA_RESPONSE
+                output.append(bili_result)
+                finish_session(log_entry, status=SessionStatus.fail, error=f'Bilibili search error: {e}', final_response=bili_result)
+                return output
+            output.append(bili_result)
         finish_session(log_entry, status=SessionStatus.success, final_response=output)
         return output
