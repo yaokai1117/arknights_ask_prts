@@ -8,18 +8,17 @@ def _create_exampler(exampler_name: str, question: str, queries: List[str], quer
   return f'{exampler_name}:\n\
 User: {question}\n\
 Queries: {queries}\n\
-Results:' + json.dumps(query_result, ensure_ascii=False) + f'\nThoughts: {thoughts}\n\
+Results:' + json.dumps(query_result, ensure_ascii=False) + f'\n\
 Final output: \n\
-{final_response}\n\
+{thoughts}\n\
 \n\
+{final_response}\n\
 '
 
 def _create_user_input(question: str, queries: List[str], query_result: List[dict]) -> str:
   return f'User: {question}\n\
 Queries: {queries}\n\
 Results:' + json.dumps(query_result, ensure_ascii=False) + f'\n\
-Your reponse start here:\n\
-Thoughts: ?\n\
 Final output: ?\n\
 \n\
 '
@@ -117,7 +116,7 @@ QUERY_RESULTS_1 = [
   }
 }
 ]
-THOUGHTS_1 = '根据返回的数据结果，可以列出干员仇白的属性，技能，在最高精英阶段（phase(index-1)）时的数值（生命值，攻击力）等等。'
+THOUGHTS_1 = '根据游戏数据的查询结果，可以列出干员仇白的属性，技能，在最高精英阶段时的数值（生命值，攻击力）等等。'
 FINAL_RESPONSE_1 = '仇白\n\
 描述：行走江湖的炎国剑客仇白，为不平之事停下脚步。她出生时正遇一场大雪，这本是一场难得的相逢。\n\
 标签：输出，控场 位置：近战\n\
@@ -220,8 +219,8 @@ QUERY_RESULTS_2 = [{
     }
   }
 }]
-THOUGHTS_2 = '从query可见”黄昏“是一个技能名字。专精(或专一,专二,专三)指的是干员的技能在升至7级之后进一步强化的过程。\n\
-注意，这里的查询结果包含全部的专精需求，因为我们只需要”专三“的材料，我们只需要用到列表中第三个数据。'
+THOUGHTS_2 = '”黄昏“是一个技能名字。专精(或专一,专二,专三)指的是干员的技能在升至7级之后进一步强化的过程。\n\
+这里的游戏数据查询结果包含全部的专精需求，因为我们只需要”专三“的材料，我们只需要用到列表中第三个数据。'
 FINAL_RESPONSE_2 = '“黄昏”是干员史尔特尔的技能，它专三需要的材料是：\n\
 技巧概要·卷3 * 15\n\
 D32钢 * 6\n\
@@ -234,18 +233,12 @@ SYSTEM_PROMPT = f'\注意请不要使用你已有的关于《明日方舟》信�
 明日方舟中的干员可以有多个精英阶段,分别为未精英(精0),精一,精二.除非用户特别指明需要低等级信息,我们只返回干员的最高精英阶段(index=-1).每个精英阶段有若干属性节点,除非用户特别指明需要低等级信息,我们只返回该阶段最高属性节点(index=-1)\n\
 每个干员可以有最多三个技能,用户未指明时我们返回全部技能(index=null),每个技能在不同等级有不同效果.除非用户特别指明需要低等级信息,我们只返回技能最高等级(index为-1)的信息.\n\
 现在，提供给你用户的问题，query list， results list，请分析query result并使用它来回答用户的问题。\n\
---- Result format --- \n\
-Thoughts: Step by step analysis. \n\
-\n\
-Final output:\n\
-Your final response that will be shown to the user\n\
---- End Result format --- \n\
-确保你的回复包含"Final output:"及之后的回答\n\
 参照以下示例\n\
 --- Begin Examplers: ---\n\
 {EXAMPLER_1}\n\
 {EXAMPLER_2}\n\
 --- End Examplers: ---\n\
+Think step by step.\n\
 '
 
 class Summarizer():
@@ -269,7 +262,7 @@ class Summarizer():
         result_json_idx = response.find(Summarizer.OUTPUT_INDICATOR)
         if result_json_idx != -1:
            response = response[result_json_idx + len(Summarizer.OUTPUT_INDICATOR):]
-        return response
+        return response.strip()
 
 if __name__ == '__main__':
     from utils import start_session

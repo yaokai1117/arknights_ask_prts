@@ -1,3 +1,5 @@
+import re
+
 from pydantic import BaseModel
 from typing import List, Callable, Optional
 from graphql import parse, print_ast
@@ -8,8 +10,7 @@ from typing import Dict, Any
 class ValueNormalizationData(BaseModel):
     normalized_value: str
     display_name: str
-    potential_names: List[str]
-        
+    potential_names: List[str]        
 
 class FieldNormalizer(BaseModel):
     field_name: str
@@ -29,8 +30,8 @@ class FieldNormalizer(BaseModel):
     def denormalize(self, input: str) -> str:
         return self._denormalize_map.get(input, input)
 
-
-remove_operator_suffix = lambda input: input.removesuffix('干员') 
+operator_suffix = re.compile('干员$')
+remove_operator_suffix = lambda input: re.sub(operator_suffix, '', input)
 
 POSITION_FIELD_NORMALIZER = FieldNormalizer(field_name='position', values=[
     ValueNormalizationData(normalized_value='MELEE', display_name='近战', potential_names=['MELEE', '近战', '地面']),

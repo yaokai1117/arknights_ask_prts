@@ -132,8 +132,8 @@ Final output: \n\
 }}\n\
 \n\
 Exampler 4:\n\
-User: "银灰和史尔特尔谁的天赋更强大？" \n\
-Agent: "Thoughts: 我们需要发送两个query分别获取这两个干员的天赋\n\
+User: "银灰和史尔特尔谁的攻击力更高？" \n\
+Agent: "Thoughts: 我们需要发送两个query分别获取这两个干员的攻击力。\n\
 Final output: \n\
 {{\n\
     "result_type": "related",\n\
@@ -142,13 +142,21 @@ Final output: \n\
         \"{{\\n\
         characters(filter: {{name: \\"银灰\\"}}) {{\\n\
             name\\n\
-            talents\\n\
+            phases(index: -1) {{\n\
+                attributesKeyFrames(index: -1) {{\n\
+                    atk\n\
+                }}\n\
+            }}\n\
         }}\\n\
         }}\",\n\
         \"{{\\n\
         characters(filter: {{name: \\"史尔特尔\\"}}) {{\\n\
             name\\n\
-            talents\\n\
+            phases(index: -1) {{\n\
+                attributesKeyFrames(index: -1) {{\n\
+                    atk\n\
+                }}\n\
+            }}\n\
         }}\\n\
         }}\"\n\
     ]\n\
