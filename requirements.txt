@@ -1,7 +1,9 @@
 bilibili_api_python
 fastapi
 graphql_core
-openai
+langchain
+langchain_core
+langchain_openai
 pydantic
 pymongo
 python-dotenv
