@@ -1,76 +1,55 @@
 from planner import Planner
 from summarizer import Summarizer
-from typing import List
-from data_model import PlannerOutputType, ToolType, SessionStatus, LogEntry
-from utils import graphql_client, bilibili_search
-from utils import normalize_graphql_query, denormalize_graphql_result
+from typing import Dict, Any
+from data_model import PlannerOutput, PlannerOutputType, ToolType, SessionStatus, LogEntry
+
+from langchain_core.runnables import RunnableBranch
+
+from utils import create_graphql_caller, bilibili_search
+
+question_key = 'question'
+planner_output_key = 'planner_output'
 
 class Processor():
     NO_IDEA_RESPONSE = '不知道诶。。。'
     UNRELATED_RESPONSE = '这个问题似乎与明日方舟无关。'
-    BILI_SEARCH_RESPONSE_HEADER = '在哔哩哔哩上搜索[{keywords}]的结果：\n{results}'
+    INPUT_KEY = Planner.input_key
 
-    def __init__(self) -> None:
-        self.planner = Planner()
-        self.summarizer = Summarizer()
+    def __init__(self, log_entry: LogEntry) -> None:
+        self.log_entry = log_entry
+        self.planner = Planner(log_entry)
+        self.summarizer = Summarizer(log_entry)
+        self.chain = (self.planner 
+            | (lambda x: {question_key: x[Planner.input_key], planner_output_key: PlannerOutput.model_validate(x)})
+            | RunnableBranch(
+                (lambda x: not x[planner_output_key].succeeded, self._handle_plan_failure),
+                (lambda x: x[planner_output_key].type == PlannerOutputType.unrelated, self._handle_plan_unrelated),
+                (lambda x: x[planner_output_key].tool_type == ToolType.game_data_graph_ql, (self._call_graphql | self.summarizer | (lambda x: x[Summarizer.output_key]))),
+                (lambda x: x[planner_output_key].tool_type == ToolType.bilibili_search, ((lambda x: x[planner_output_key].tool_input) | bilibili_search)),
+                lambda x: Processor.NO_IDEA_RESPONSE
+            )
+            | self._log_final_response
+        )
 
-    async def process(self, question: str, log_entry: LogEntry) -> str:
-        planner_output = self.planner.process(question, log_entry)
-        log_entry.planner_output = planner_output
-        if not planner_output.succeeded:
-            log_entry.status = SessionStatus.fail
-            log_entry.error = f'Planner error: {planner_output.error}'
-            log_entry.final_response =Processor.NO_IDEA_RESPONSE
-            return Processor.NO_IDEA_RESPONSE
-        
-        if planner_output.type == PlannerOutputType.unrelated:
-            log_entry.status = SessionStatus.success
-            log_entry.final_response = Processor.UNRELATED_RESPONSE
-            return Processor.UNRELATED_RESPONSE
-        
-        final_reponse: str
-        if planner_output.tool_type == ToolType.game_data_graph_ql:
-            query_results: List[dict] = []
-            for query in planner_output.tool_input:
-                try:
-                    query = normalize_graphql_query(query)
-                    log_entry.graphql_queries.append(query)
-                    query_result = graphql_client.query(query)
-                    denormalize_graphql_result(query_result)
-                except Exception as e:
-                    log_entry.status = SessionStatus.fail
-                    log_entry.error = f'GraphQL error: {e}'
-                    continue
-                query_results.append(query_result)
-                log_entry.graphql_results.append(query_result)
-            if log_entry.status != SessionStatus.fail:
-                final_reponse = self.summarizer.process(question, planner_output.tool_input, query_results, log_entry)
-
-            if log_entry.status == SessionStatus.fail:
-                # Fallback to bilibili search when graphql failed.
-                log_entry.fall_back_tool = ToolType.bilibili_search
-                try:
-                    search_result = await bilibili_search([question])
-                    bili_result = self.BILI_SEARCH_RESPONSE_HEADER.format(keywords=question, results=search_result)
-                except Exception as e:
-                    bili_result = Processor.NO_IDEA_RESPONSE
-                finally:
-                    final_reponse = bili_result
-                    log_entry.final_response = final_reponse
-                    return final_reponse
-
-        elif planner_output.tool_type == ToolType.bilibili_search:
-            try:
-                search_result = await bilibili_search(planner_output.tool_input)
-                bili_result = self.BILI_SEARCH_RESPONSE_HEADER.format(keywords=planner_output.tool_input, results=search_result)
-            except Exception as e:
-                bili_result = Processor.NO_IDEA_RESPONSE
-                final_reponse = bili_result
-                log_entry.status = SessionStatus.fail
-                log_entry.error = f'Bilibili search error: {e}'
-                log_entry.final_response = final_reponse
-                return final_reponse
-            final_reponse = bili_result
-        log_entry.status = SessionStatus.success
-        log_entry.final_response = final_reponse
-        return final_reponse
+    def _handle_plan_failure(self, x: Dict[str, Any]) -> str:
+        planner_output = x[planner_output_key]
+        self.log_entry.status = SessionStatus.fail
+        self.log_entry.error = f'Planner error: {planner_output.error}'
+        self.log_entry.final_response =Processor.NO_IDEA_RESPONSE
+        return Processor.NO_IDEA_RESPONSE
+    
+    def _handle_plan_unrelated(self, x: Dict[str, Any]) -> str:
+        self.log_entry.status = SessionStatus.success
+        self.log_entry.final_response = Processor.UNRELATED_RESPONSE
+        return Processor.UNRELATED_RESPONSE
+    
+    async def _call_graphql(self, x: Dict[str, Any]) -> Dict[str, Any]:
+        question = x[question_key]
+        planner_output = x[planner_output_key]
+        graphql_caller = create_graphql_caller(self.log_entry)
+        results = await graphql_caller.abatch(planner_output.tool_input)
+        return {Summarizer.question_key: question, Summarizer.graphql_query_key: planner_output.tool_input, Summarizer.graphql_result_key: results}
+    
+    def _log_final_response(self, response: str) -> str:
+        self.log_entry.final_response = response
+        return response

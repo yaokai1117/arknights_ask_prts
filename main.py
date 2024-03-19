@@ -17,9 +17,9 @@ def read_root():
 
 @app.post('/ask/')
 async def post_message(request: AskPrtsRequest) -> AskPrtsReponse:
-    processor = Processor()
     log_entry = start_session(request.content, session_id=request.session_id)
-    final_response = await processor.process(request.content, log_entry)
+    processor = Processor(log_entry)
+    final_response = await processor.chain.ainvoke({Processor.INPUT_KEY: request.content})
     save_session(log_entry)
     return AskPrtsReponse(content=final_response, session_id=str(log_entry.session_id))
 

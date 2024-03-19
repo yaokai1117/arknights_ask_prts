@@ -1,30 +1,20 @@
 import json
 
-from utils import llm_client
+from langchain.chains.base import Chain
+from langchain_core.callbacks import (
+    AsyncCallbackManagerForChainRun,
+    CallbackManagerForChainRun,
+)
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts.few_shot import FewShotChatMessagePromptTemplate
+from langchain_openai import ChatOpenAI
+
 from data_model import LogEntry, Message, SessionStatus
-from typing import List
-
-def _create_exampler(exampler_name: str, question: str, queries: List[str], query_result: List[dict], thoughts: str, final_response: str) -> str:
-  return f'{exampler_name}:\n\
-User: {question}\n\
-Queries: {queries}\n\
-Results:' + json.dumps(query_result, ensure_ascii=False) + f'\n\
-Final output: \n\
-{thoughts}\n\
-\n\
-{final_response}\n\
-'
-
-def _create_user_input(question: str, queries: List[str], query_result: List[dict]) -> str:
-  return f'User: {question}\n\
-Queries: {queries}\n\
-Results:' + json.dumps(query_result, ensure_ascii=False) + f'\n\
-Final output: ?\n\
-\n\
-'
+from typing import List, Dict, Any, Optional, ClassVar
 
 QUESTION_1 = '请介绍新干员仇白'
-QUERIES_1 = ['{{\
+QUERIES_1 = ['{\n\
   characters(filter: {name: "仇白"}) {\n\
     name\n\
     description\n\
@@ -51,7 +41,7 @@ QUERIES_1 = ['{{\
     }\n\
     talents\n\
   }\n\
-}}']
+}']
 QUERY_RESULTS_1 = [
   {
   "data": {
@@ -134,10 +124,9 @@ FINAL_RESPONSE_1 = '仇白\n\
 天赋一：入隙: 攻击处于停顿、束缚的敌人时，额外造成相当于攻击力43%（+3%）的法术伤害\n\
 天赋二：落英: 攻击时有23%（+3%）的几率使目标束缚1.5秒\n\
 '
-EXAMPLER_1 = _create_exampler('Example 1', QUESTION_1, QUERIES_1, QUERY_RESULTS_1, THOUGHTS_1, FINAL_RESPONSE_1)
 
 QUESTION_2 = '黄昏专三的专精材料是什么'
-QUERIES_2 = '[{{\n\
+QUERIES_2 = '[{\n\
   skill(filter: {skillName: "黄昏"}) {\n\
     skillRequirements {\n\
       character {\n\
@@ -226,47 +215,117 @@ FINAL_RESPONSE_2 = '“黄昏”是干员史尔特尔的技能，它专三需要
 D32钢 * 6\n\
 聚合凝胶 * 6\n\
 '
-EXAMPLER_2 = _create_exampler('Example 2', QUESTION_2, QUERIES_2, QUERY_RESULTS_2, THOUGHTS_2, FINAL_RESPONSE_2)
 
 SYSTEM_PROMPT = f'\注意请不要使用你已有的关于《明日方舟》信息,仅仅考虑上下文提供的信息进行回答.\n\
 你是一名了解游戏《明日方舟》,并且精通Graph QL的专家。我们现有一个可以查询明日方舟游戏数据（如干员，技能信息）的Graph QL API。针对用户的问题，我们已经编写了query，并且获得了query results。\n\
 明日方舟中的干员可以有多个精英阶段,分别为未精英(精0),精一,精二.除非用户特别指明需要低等级信息,我们只返回干员的最高精英阶段(index=-1).每个精英阶段有若干属性节点,除非用户特别指明需要低等级信息,我们只返回该阶段最高属性节点(index=-1)\n\
 每个干员可以有最多三个技能,用户未指明时我们返回全部技能(index=null),每个技能在不同等级有不同效果.除非用户特别指明需要低等级信息,我们只返回技能最高等级(index为-1)的信息.\n\
 现在，提供给你用户的问题，query list， results list，请分析query result并使用它来回答用户的问题。\n\
-参照以下示例\n\
---- Begin Examplers: ---\n\
-{EXAMPLER_1}\n\
-{EXAMPLER_2}\n\
---- End Examplers: ---\n\
 Think step by step.\n\
 '
+EXAMPLES = [
+    {'question': QUESTION_1, 'queries': str(QUERIES_1), 'query_results': json.dumps(QUERY_RESULTS_1, ensure_ascii=False), 'thoughts': THOUGHTS_1, 'response': FINAL_RESPONSE_1},
+    {'question': QUESTION_2, 'queries': str(QUERIES_2), 'query_results': json.dumps(QUERY_RESULTS_2, ensure_ascii=False), 'thoughts': THOUGHTS_2, 'response': FINAL_RESPONSE_2},
+]
 
-class Summarizer():
-    OUTPUT_INDICATOR = 'Final output:'
+OUTPUT_INDICATOR = 'Final output:'
 
-    def process(self, question: str, queries: List[str], query_results: List[dict], log_entry: LogEntry) -> str:
-        messages = [
-            Message(role='system', content=SYSTEM_PROMPT),
-            Message(role='user', content=_create_user_input(question, queries, query_results)),
-        ]
-        log_entry.messages.extend(messages)
+class Summarizer(Chain):
+    output_key: ClassVar[str] = 'response'
+    question_key: ClassVar[str] = 'question'
+    graphql_query_key: ClassVar[str] = 'graphql_queries'
+    graphql_result_key: ClassVar[str] = 'graphql_results'
+
+    chain: Chain = None
+    log_entry: LogEntry = None
+
+    def __init__(self, log_entry: LogEntry) -> None:
+        super().__init__(log_entry=log_entry)
+        example_prompt = ChatPromptTemplate.from_messages([('user', 'Question: {question} \n\nQueries: {queries} \n\nQuery Results: {query_results}'), ('ai', 'Thoughts: {thoughts} \n\nFinal output: {response}')])
+
+        few_shot_prompt = FewShotChatMessagePromptTemplate(
+            examples=EXAMPLES,
+            # This is a prompt template used to format each individual example.
+            example_prompt=example_prompt,
+        )
+
+        final_prompt = ChatPromptTemplate.from_messages([
+            ('system', SYSTEM_PROMPT),
+            few_shot_prompt,
+            ('user', 'User: {question} \nQueries: {graphql_queries} \nQuery Results: {graphql_results}'),
+        ])
+        
+        llm = ChatOpenAI(temperature=0.3)
+
+        self.chain = (
+            {
+                'question': lambda x: x[Summarizer.question_key],
+                'graphql_queries': lambda x: x[Summarizer.graphql_query_key],
+                'graphql_results': lambda x: x[Summarizer.graphql_result_key],
+            }
+            | final_prompt
+            | llm
+            | StrOutputParser()
+        )
+    
+    @property
+    def input_keys(self) -> List[str]:
+        return [Summarizer.question_key, Summarizer.graphql_query_key, Summarizer.graphql_result_key]
+
+    @property
+    def output_keys(self) -> List[str]:
+        return [Summarizer.output_key]
+    
+    def _call(
+        self,
+        inputs: Dict[str, Any],
+        run_manager: Optional[CallbackManagerForChainRun] = None,
+    ) -> Dict[str, Any]:
+        question = inputs[Summarizer.question_key]
+        self.log_entry.messages.extend([
+            Message(role='user', content=question),
+        ])
+
         try:
-            response = llm_client.send(messages)
+            response = self.chain.invoke(inputs)
         except Exception as e:
-            log_entry.status = SessionStatus.fail
-            log_entry.error = f'Summarizer error: Exception when calling LLM: {e}'
+            self.log_entry.status = SessionStatus.fail
+            self.log_entry.error = f'Summarizer error: Exception when calling LLM: {e}'
+            
+        self.log_entry.status = SessionStatus.success
+        return self._parse_llm_response(response)
+        
+    async def _acall(
+        self,
+        inputs: Dict[str, Any],
+        run_manager: Optional[AsyncCallbackManagerForChainRun] = None,
+    ) -> Dict[str, Any]:
+        question = inputs[Summarizer.question_key]
+        self.log_entry.messages.extend([
+            Message(role='user', content=question),
+        ])
+
+        try:
+            response = await self.chain.ainvoke(inputs)
+        except Exception as e:
+            self.log_entry.status = SessionStatus.fail
+            self.log_entry.error = f'Summarizer error: Exception when calling LLM: {e}'
             return ''
 
-        log_entry.messages.append(Message(role='agent', content=response))
+        self.log_entry.status = SessionStatus.success
+        return self._parse_llm_response(response)
 
-        result_json_idx = response.find(Summarizer.OUTPUT_INDICATOR)
+    def _parse_llm_response(self, response: str) -> Dict[str, str]:
+        self.log_entry.messages.append(Message(role='agent', content=response))
+
+        result_json_idx = response.find(OUTPUT_INDICATOR)
         if result_json_idx != -1:
-           response = response[result_json_idx + len(Summarizer.OUTPUT_INDICATOR):]
-        return response.strip()
+           response = response[result_json_idx + len(OUTPUT_INDICATOR):]
+        return {Summarizer.output_key: response.strip()}
 
 if __name__ == '__main__':
     from utils import start_session
-    summarizer = Summarizer()
+    summarizer = Summarizer(start_session('test'))
     question = '山是什么职业的干员,他的二天赋是什么?'
     queries = ['{\
         characters(filter: {name: "山"}) {\n\
@@ -292,6 +351,5 @@ if __name__ == '__main__':
             }
         }
     ]
-   
-    print(summarizer.process(question, queries, query_results, start_session('test')))
-   
+    
+    print(summarizer.invoke({'question': question, 'graphql_queries': queries, 'graphql_results': query_results}))
