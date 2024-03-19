@@ -1,5 +1,4 @@
-## arknights_ask_prts
-
+## arknights_ask_prts 明日方舟游戏数据问答
 A chat bot API for questions about game Arknights, leveraing the GraphQL game data API [arknights_data_api](https://github.com/yaokai1117/arknights_data_api)  
 
 **Everything is still WIP.**
