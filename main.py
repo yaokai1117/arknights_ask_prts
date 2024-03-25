@@ -11,9 +11,11 @@ PORT = int(os.getenv("CHAT_API_PORT"))
 
 app = FastAPI()
 
+
 @app.get('/')
 def read_root():
     return "It's working!"
+
 
 @app.post('/ask/')
 async def post_message(request: AskPrtsRequest) -> AskPrtsReponse:
@@ -23,6 +25,6 @@ async def post_message(request: AskPrtsRequest) -> AskPrtsReponse:
     save_session(log_entry)
     return AskPrtsReponse(content=final_response, session_id=str(log_entry.session_id))
 
-if __name__ ==  '__main__':
+if __name__ == '__main__':
     import uvicorn
     uvicorn.run(app, host='0.0.0.0', port=PORT)

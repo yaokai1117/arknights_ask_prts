@@ -2,6 +2,8 @@ from pydantic import BaseModel
 from typing import Tuple
 
 # LLM data models.
+
+
 class Message(BaseModel):
     role: str
     content: str

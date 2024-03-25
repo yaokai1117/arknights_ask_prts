@@ -10,10 +10,11 @@ HTML_TAGS = re.compile('<.*?>')
 BILI_SEARCH_RESPONSE_HEADER = '在哔哩哔哩上搜索[{keywords}]的结果：\n{results}'
 NO_IDEA_RESPONSE = '不知道诶。。。'
 
+
 async def _bilibili_search(keywords: List[str]) -> str:
     try:
         search_response = await search.search_by_type(' '.join(keywords), search_type=search.SearchObjectType.VIDEO,
-                                       order_type=search.OrderVideo.TOTALRANK, page=1, debug_param_func=print)
+                                                      order_type=search.OrderVideo.TOTALRANK, page=1, debug_param_func=print)
     except Exception as e:
         bili_result = NO_IDEA_RESPONSE
     results: List[str] = []

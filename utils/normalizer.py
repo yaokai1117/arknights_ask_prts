@@ -7,10 +7,12 @@ from graphql.language.ast import ObjectFieldNode, FieldNode
 from graphql.language.visitor import visit, Visitor, IDLE
 from typing import Dict, Any
 
+
 class ValueNormalizationData(BaseModel):
     normalized_value: str
     display_name: str
-    potential_names: List[str]        
+    potential_names: List[str]
+
 
 class FieldNormalizer(BaseModel):
     field_name: str
@@ -20,18 +22,20 @@ class FieldNormalizer(BaseModel):
     def __init__(self, **data):
         super().__init__(**data)
         self._normalize_map = {name: value.normalized_value for value in self.values for name in value.potential_names}
-        self._denormalize_map = {value.normalized_value : value.display_name for value in self.values}
+        self._denormalize_map = {value.normalized_value: value.display_name for value in self.values}
 
     def normalize(self, input: str) -> str:
         if self.pre_process != None:
             input = self.pre_process(input)
         return self._normalize_map.get(input, input)
-    
+
     def denormalize(self, input: str) -> str:
         return self._denormalize_map.get(input, input)
 
+
 operator_suffix = re.compile('干员$')
-remove_operator_suffix = lambda input: re.sub(operator_suffix, '', input)
+def remove_operator_suffix(input): return re.sub(operator_suffix, '', input)
+
 
 POSITION_FIELD_NORMALIZER = FieldNormalizer(field_name='position', values=[
     ValueNormalizationData(normalized_value='MELEE', display_name='近战', potential_names=['MELEE', '近战', '地面']),
@@ -117,15 +121,18 @@ normalizers_map = {normalizer.field_name: normalizer for normalizer in [
     SUB_PROFESSION_FIELD_NORMALIZER,
 ]}
 
+
 def _normalize_field(field: str, input: str) -> str:
     if field in normalizers_map.keys():
         return normalizers_map[field].normalize(input)
     return input
 
+
 def _denormalize_field(field: str, input: str) -> str:
     if field in normalizers_map.keys():
         return normalizers_map[field].denormalize(input)
     return input
+
 
 class NormalizeVisitor(Visitor):
     # TODO: read this from schema.
@@ -153,10 +160,12 @@ class NormalizeVisitor(Visitor):
                 return IDLE
         return IDLE
 
+
 def normalize_graphql_query(query: str) -> str:
     ast = parse(query)
     new_ast = visit(ast, NormalizeVisitor())
     return print_ast(new_ast)
+
 
 def denormalize_graphql_result(obj: Dict[str, Any]) -> None:
     for key, value in obj.items():
@@ -175,6 +184,7 @@ def denormalize_graphql_result(obj: Dict[str, Any]) -> None:
                 else:
                     new_list.append(sub_value)
             obj[key] = new_list
+
 
 if __name__ == '__main__':
     PRODUCT_QUERY = '''

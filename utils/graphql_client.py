@@ -13,11 +13,14 @@ load_dotenv()
 GRAPHQL_PORT = os.getenv("GRAPHQL_PORT")
 GRAPHQL_URL = f'http://127.0.0.1:{GRAPHQL_PORT}/'
 
+
 class GraphQLCient():
     def query(self, query: str) -> dict:
         return json.loads(requests.post(url=GRAPHQL_URL, json={'query': query}).content)
 
+
 graphql_client = GraphQLCient()
+
 
 def _query_graphql(query: str, log_entry: LogEntry) -> Dict[str, Any]:
     try:
@@ -28,10 +31,10 @@ def _query_graphql(query: str, log_entry: LogEntry) -> Dict[str, Any]:
     except Exception as e:
         log_entry.status = SessionStatus.fail
         log_entry.error = f'GraphQL error: {e}'
-    
+
     log_entry.graphql_results.append(query_result)
     return {'query_result': query_result}
 
+
 def create_graphql_caller(log_entry: LogEntry) -> RunnableLambda:
     return RunnableLambda(lambda x: _query_graphql(x, log_entry))
-

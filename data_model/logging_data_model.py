@@ -7,10 +7,12 @@ from typing import List, Optional
 
 # Logging data models.
 
+
 class SessionStatus(str, Enum):
     in_progress = 'in_progress'
     success = 'success'
     fail = 'fail'
+
 
 class LogEntry(BaseModel):
     session_id: UUID
@@ -24,5 +26,5 @@ class LogEntry(BaseModel):
     graphql_results: List[dict] = []
     fall_back_tool: Optional[ToolType] = None
 
-    class Config:  
+    class Config:
         use_enum_values = True

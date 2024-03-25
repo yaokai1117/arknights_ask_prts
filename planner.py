@@ -114,7 +114,7 @@ RESPONSE_2 = '{\n\
     ]\n\
 }'
 
-QUESTION_3 = '有哪些六星的秘术师干员' 
+QUESTION_3 = '有哪些六星的秘术师干员'
 THOUGHTS_3 = '''首先我们需要唯一确认“秘术师“对应的字段，它可能是位置(position)、职业(profession)、分支职业(subProfession). 可以通过以下步骤来确定:
 位置(position)的全部值为: [高台、地面、近战、远程]. “秘术师“不在其中,所以它不是一个位置.
 职业(profession)的全部值: [先锋,近卫,术师(=术士),狙击,重装,医疗,辅助,特种],“秘术师“不在其中,所以它不是一个职业(profession)
@@ -186,6 +186,7 @@ EXAMPLES = [
 
 OUTPUT_INDICATOR = 'Final output:'
 
+
 class Planner(Chain):
     input_key: ClassVar[str] = 'question'
     chain: Chain = None
@@ -193,7 +194,8 @@ class Planner(Chain):
 
     def __init__(self, log_entry: LogEntry) -> None:
         super().__init__(log_entry=log_entry)
-        example_prompt = ChatPromptTemplate.from_messages([('user', '{question}'), ('ai', 'Thoughts: {thoughts} \n\nFinal output: {response}')])
+        example_prompt = ChatPromptTemplate.from_messages(
+            [('user', '{question}'), ('ai', 'Thoughts: {thoughts} \n\nFinal output: {response}')])
 
         few_shot_prompt = FewShotChatMessagePromptTemplate(
             examples=EXAMPLES,
@@ -206,7 +208,7 @@ class Planner(Chain):
             few_shot_prompt,
             ('user', '{question}'),
         ])
-        
+
         llm = ChatOpenAI(temperature=0.3)
 
         self.chain = (
@@ -218,9 +220,9 @@ class Planner(Chain):
             | llm
             | StrOutputParser()
             | self._parse_llm_response
-            | self._pydantic_to_dict    
+            | self._pydantic_to_dict
         )
-    
+
     @property
     def input_keys(self) -> List[str]:
         return [Planner.input_key]
@@ -228,7 +230,7 @@ class Planner(Chain):
     @property
     def output_keys(self) -> List[str]:
         return PlannerOutput.model_fields.keys()
-    
+
     def _call(
         self,
         inputs: Dict[str, Any],
@@ -244,7 +246,7 @@ class Planner(Chain):
         except Exception as e:
             return self._create_failed_output(f'Exception when calling LLM: {e}').model_dump()
         return result
-        
+
     async def _acall(
         self,
         inputs: Dict[str, Any],
@@ -282,7 +284,7 @@ class Planner(Chain):
             output_type = PlannerOutputType.solvable_by_tool
         else:
             return self._create_failed_output('Unknown result type.')
-        
+
         tool_type: ToolType
         if result.get('tool_name') in [e.value for e in ToolType]:
             tool_type = ToolType[result['tool_name']]
@@ -290,14 +292,15 @@ class Planner(Chain):
             return self._create_failed_output('Unknown tool type.')
 
         return PlannerOutput(succeeded=True, type=output_type, tool_type=tool_type, tool_input=result.get('tool_input'))
-    
+
     def _create_failed_output(self, error: str) -> PlannerOutput:
         return PlannerOutput(succeeded=False, error=error)
 
     def _pydantic_to_dict(self, response: PlannerOutput) -> Dict[str, Any]:
         return response.model_dump()
 
-if __name__ ==  '__main__':
+
+if __name__ == '__main__':
     from utils import start_session
 
     some_log_entry = start_session('test')
@@ -315,4 +318,3 @@ if __name__ ==  '__main__':
     # print(planer.process('有哪些六星的术士', log_entry))
     # print(planer.process('有哪些5星的远卫干员', log_entry))
     print(planer.invoke({'question': '苇草的技能专精需要用到三水锰矿吗'}))
-
