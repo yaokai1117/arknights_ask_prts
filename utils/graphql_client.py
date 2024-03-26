@@ -4,12 +4,10 @@ import requests
 
 
 from .normalizer import normalize_graphql_query, denormalize_graphql_result
-from dotenv import load_dotenv
 from langchain_core.runnables.base import RunnableLambda
 from typing import Dict, Any
 from data_model import LogEntry, SessionStatus
 
-load_dotenv()
 GRAPHQL_PORT = os.getenv("GRAPHQL_PORT")
 GRAPHQL_URL = f'http://127.0.0.1:{GRAPHQL_PORT}/'
 

@@ -1,22 +1,14 @@
 import os  # nopep8
-import sys  # nopep8
-ROOT_PATH = os.path.join(os.path.dirname(__file__), '..')  # nopep8
-sys.path.append(ROOT_PATH)  # nopep8
 
+from .mongodb_client import mongo_client
 from data_model import LogEntry, SessionStatus
 from uuid import UUID, uuid4
-from dotenv import load_dotenv
-import pymongo
 
 
-load_dotenv()
-
-MONGODB_URI = os.getenv("MONGODB_URI")
 DATABASE_NAME = os.getenv("MONGODB_LOGGING_DB")
 COLLECTION_NAME = os.getenv("MONGODB_RAWENTRY_COLLECTION")
 
-client = pymongo.MongoClient(MONGODB_URI, uuidRepresentation='standard')
-db = client[DATABASE_NAME]
+db = mongo_client[DATABASE_NAME]
 collection = db[COLLECTION_NAME]
 
 

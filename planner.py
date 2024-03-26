@@ -12,14 +12,11 @@ from langchain_core.prompts.few_shot import FewShotChatMessagePromptTemplate
 from langchain_openai import ChatOpenAI
 
 from data_model import Message, PlannerOutput, PlannerOutputType, ToolType, LogEntry
-from dotenv import load_dotenv
-
 from typing import List, Dict, Any, Optional, ClassVar
 
 # Determint the intention of user's input and decide which
 # worker should be called next.
 
-load_dotenv()
 schema_path = os.getenv("GRAPHQL_SCHEMA_PATH")
 with open(schema_path) as file:
     schema = file.read()
@@ -219,7 +216,7 @@ class Planner(Chain):
             | final_prompt
             | llm
             | StrOutputParser()
-            | self._parse_llm_response
+            | self._parse_llm_response_and_log
             | self._pydantic_to_dict
         )
 
@@ -263,9 +260,14 @@ class Planner(Chain):
             return self._create_failed_output(f'Exception when calling LLM: {e}').model_dump()
 
         return result
+    
+    def _parse_llm_response_and_log(self, response: str) -> PlannerOutput:
+        self.log_entry.messages.append(Message(role='agent', content=response))
+        result = self._parse_llm_response(response)
+        self.log_entry.planner_output = result
+        return result
 
     def _parse_llm_response(self, response: str) -> PlannerOutput:
-        self.log_entry.messages.append(Message(role='agent', content=response))
         result_json_idx = response.find(OUTPUT_INDICATOR)
         if result_json_idx == -1:
             return self._create_failed_output('No final output returned from Planner.')

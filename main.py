@@ -1,11 +1,11 @@
 import os
+from dotenv import load_dotenv  # nopep8
+load_dotenv()  # nopep8
+
 from fastapi import FastAPI
 from processor import Processor
 from data_model import AskPrtsRequest, AskPrtsReponse
 from utils import start_session, save_session
-from dotenv import load_dotenv
-
-load_dotenv()
 
 PORT = int(os.getenv("CHAT_API_PORT"))
 
