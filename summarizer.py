@@ -1,5 +1,6 @@
 import json
-
+# import langchain
+# langchain.debug = True
 from langchain.chains.base import Chain
 from langchain_core.callbacks import (
     AsyncCallbackManagerForChainRun,
@@ -11,10 +12,11 @@ from langchain_core.prompts.few_shot import FewShotChatMessagePromptTemplate
 from langchain_openai import ChatOpenAI
 
 from data_model import LogEntry, Message, SessionStatus
-from typing import List, Dict, Any, Optional, ClassVar
+from typing import List, Dict, Any, Optional, ClassVar, Tuple
 
 QUESTION_1 = '请介绍新干员仇白'
-QUERIES_1 = ['{\n\
+TOOL_NAME_1 = 'game_data_graph_ql'
+TOOL_INPUT_1 = ['{\n\
   characters(filter: {name: "仇白"}) {\n\
     name\n\
     description\n\
@@ -42,7 +44,7 @@ QUERIES_1 = ['{\n\
     talents\n\
   }\n\
 }']
-QUERY_RESULTS_1 = [
+TOOL_OUTPUT_1 = [
     {
         "data": {
             "characters": [
@@ -126,7 +128,8 @@ FINAL_RESPONSE_1 = '仇白\n\
 '
 
 QUESTION_2 = '黄昏专三的专精材料是什么'
-QUERIES_2 = '[{\n\
+TOOL_NAME_2 = 'game_data_graph_ql'
+TOOL_INPUT_2 = ['{\n\
   skill(filter: {skillName: "黄昏"}) {\n\
     skillRequirements {\n\
       character {\n\
@@ -141,8 +144,8 @@ QUERIES_2 = '[{\n\
       }\n\
     }\n\
   }\n\
-}]'
-QUERY_RESULTS_2 = [{
+}']
+TOOL_OUTPUT_2 = [{
     "data": {
         "skill": {
             "skillRequirements": [
@@ -216,19 +219,46 @@ D32钢 * 6\n\
 聚合凝胶 * 6\n\
 '
 
-SYSTEM_PROMPT = f'\注意请不要使用你已有的关于《明日方舟》信息,仅仅考虑上下文提供的信息进行回答.\n\
-你是一名了解游戏《明日方舟》,并且精通Graph QL的专家。我们现有一个可以查询明日方舟游戏数据（如干员，技能信息）的Graph QL API。针对用户的问题，我们已经编写了query，并且获得了query results。\n\
+SYSTEM_PROMPT = f'\
+你是一个关于手机游戏《明日方舟》(Arknights)的AI助手, 熟练掌握GraphQL, 并且熟悉embedding database的使用方法. 你的任务是根据一些工具提供的response或者context, 来回答用户提出的问题。\n\
+现有的工具包括:\n\
+\n\
+1. 游戏数据GraphQL API\n\
+一个包含干员信息,技能信息的GraphQL API\n\
+注意:\n\
 明日方舟中的干员可以有多个精英阶段,分别为未精英(精0),精一,精二.除非用户特别指明需要低等级信息,我们只返回干员的最高精英阶段(index=-1).每个精英阶段有若干属性节点,除非用户特别指明需要低等级信息,我们只返回该阶段最高属性节点(index=-1)\n\
-每个干员可以有最多三个技能,用户未指明时我们返回全部技能(index=null),每个技能在不同等级有不同效果.除非用户特别指明需要低等级信息,我们只返回技能最高等级(index为-1)的信息.\n\
-现在，提供给你用户的问题，query list， results list，请分析query result并使用它来回答用户的问题。\n\
-Think step by step.\n\
-'
-EXAMPLES = [{'question': QUESTION_1, 'queries': str(QUERIES_1),
-             'query_results': json.dumps(QUERY_RESULTS_1, ensure_ascii=False),
-             'thoughts': THOUGHTS_1, 'response': FINAL_RESPONSE_1},
-            {'question': QUESTION_2, 'queries': str(QUERIES_2),
-             'query_results': json.dumps(QUERY_RESULTS_2, ensure_ascii=False),
-             'thoughts': THOUGHTS_2, 'response': FINAL_RESPONSE_2},]
+每个干员可以有最多三个技能,用户未指明时我们返回全部技能(index=null),每个技能在不同等级有不同效果.除非用户特别指明需要低等级信息,我们只返回技能最高等级(index为-1)的信息\n\
+游戏数据Graph QL API的输入数据的格式是一个列表, 包含一个或多个合法的GraphQL query string, 每一个query都符合上述的schema。\n\
+游戏数据Graph QL API的输出的格式是一个JSON列表, 包含每一个输入query的结果。\n\
+\n\
+2. 视频网站Bilibili的搜索API\n\
+搜索API的输入数据格式是一个关键词的列表\n\
+搜索API的输出数据格式是一个包含搜索结果(视频标题与链接)的列表\n\
+\n\
+3. 存储在一个Embedding Database中的游戏剧情文本\n\
+剧情文本都是人物对话的格式. 你可以通过embedding similarity来搜索与用户问题接近的剧情文本。\n\
+游戏剧情文本embedding database的输入数据格式是一个只包含单个string的列表, 它包含的string是用于similarity search的用户query\n\
+游戏剧情文本的输出数据格式是一个与关键词相关的剧情文本的列表\n\
+\n\
+对于用户的问题, 请只根据所提供的工具的输入/输出来进行回答. 不要使用任何其它信息, 不要依靠任何你原有的关于《明日方舟》的知识\n\
+Think step by step.\n'
+
+
+def _tool_context(contexts: List[Tuple[str, str, str]]) -> str:
+    return '\n\n'.join([f'Tool name: {c[0]}\nTool inputs: {c[1]}\nTool outputs: {c[2]}' for c in contexts])
+
+
+EXAMPLES = [
+    {'question': QUESTION_1,
+     'tool_contexts':
+     _tool_context([(TOOL_NAME_1, str(TOOL_INPUT_1),
+                     json.dumps(TOOL_OUTPUT_1, ensure_ascii=False))]),
+     'thoughts': THOUGHTS_1, 'response': FINAL_RESPONSE_1},
+    {'question': QUESTION_2,
+     'tool_contexts':
+     _tool_context([(TOOL_NAME_2, str(TOOL_INPUT_2),
+                     json.dumps(TOOL_OUTPUT_2, ensure_ascii=False))]),
+     'thoughts': THOUGHTS_2, 'response': FINAL_RESPONSE_2},]
 
 OUTPUT_INDICATOR = 'Final output:'
 
@@ -236,8 +266,7 @@ OUTPUT_INDICATOR = 'Final output:'
 class Summarizer(Chain):
     output_key: ClassVar[str] = 'response'
     question_key: ClassVar[str] = 'question'
-    graphql_query_key: ClassVar[str] = 'graphql_queries'
-    graphql_result_key: ClassVar[str] = 'graphql_results'
+    tool_context_key: ClassVar[str] = 'tool_context'
 
     chain: Chain = None
     log_entry: LogEntry = None
@@ -245,7 +274,7 @@ class Summarizer(Chain):
     def __init__(self, log_entry: LogEntry) -> None:
         super().__init__(log_entry=log_entry)
         example_prompt = ChatPromptTemplate.from_messages(
-            [('user', 'Question: {question} \n\nQueries: {queries} \n\nQuery Results: {query_results}'),
+            [('user', 'Question: {question} \n\nContext: {tool_contexts}'),
              ('ai', 'Thoughts: {thoughts} \n\nFinal output: {response}')])
 
         few_shot_prompt = FewShotChatMessagePromptTemplate(
@@ -257,7 +286,7 @@ class Summarizer(Chain):
         final_prompt = ChatPromptTemplate.from_messages([
             ('system', SYSTEM_PROMPT),
             few_shot_prompt,
-            ('user', 'User: {question} \nQueries: {graphql_queries} \nQuery Results: {graphql_results}'),
+            ('user', 'Question: {question} \n\nContext: {tool_contexts}'),
         ])
 
         llm = ChatOpenAI(temperature=0.3)
@@ -265,8 +294,7 @@ class Summarizer(Chain):
         self.chain = (
             {
                 'question': lambda x: x[Summarizer.question_key],
-                'graphql_queries': lambda x: x[Summarizer.graphql_query_key],
-                'graphql_results': lambda x: x[Summarizer.graphql_result_key],
+                'tool_contexts': lambda x: _tool_context(x[Summarizer.tool_context_key]),
             }
             | final_prompt
             | llm
@@ -275,7 +303,7 @@ class Summarizer(Chain):
 
     @property
     def input_keys(self) -> List[str]:
-        return [Summarizer.question_key, Summarizer.graphql_query_key, Summarizer.graphql_result_key]
+        return [Summarizer.question_key, Summarizer.tool_context_key]
 
     @property
     def output_keys(self) -> List[str]:
@@ -358,4 +386,5 @@ if __name__ == '__main__':
         }
     ]
 
-    print(summarizer.invoke({'question': question, 'graphql_queries': queries, 'graphql_results': query_results}))
+    print(summarizer.invoke({'question': question, 'tool_context': [
+          ('game_data_graph_ql', str(queries), json.dumps(query_results, ensure_ascii=False))]}))

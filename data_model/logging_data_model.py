@@ -24,6 +24,8 @@ class LogEntry(BaseModel):
     planner_output: Optional[PlannerOutput] = None
     graphql_queries: List[str] = []
     graphql_results: List[dict] = []
+    story_rag_query: str = None
+    story_rag_result: str = None
     fall_back_tool: Optional[ToolType] = None
 
     class Config:

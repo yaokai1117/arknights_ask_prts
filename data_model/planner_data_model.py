@@ -13,14 +13,21 @@ class PlannerOutputType(str, Enum):
 class ToolType(str, Enum):
     game_data_graph_ql = 'game_data_graph_ql'
     bilibili_search = 'bilibili_search'
+    story_database = 'story_database'
 
+
+class ToolInput(BaseModel):
+    tool_type: Optional[ToolType] = None
+    tool_input: Optional[str] = None
+
+    class Config:
+        use_enum_values = True
 
 class PlannerOutput(BaseModel):
     succeeded: bool
     error: Optional[str] = None
     type: Optional[PlannerOutputType] = None
-    tool_type: Optional[ToolType] = None
-    tool_input: Optional[List[str]] = None
+    inputs: List[ToolInput] = []
 
     class Config:
         use_enum_values = True
